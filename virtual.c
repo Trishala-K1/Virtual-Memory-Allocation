@@ -1,321 +1,309 @@
+
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
-#include <limits.h>
 #include "oslabs.h"
 
-/* process_page_access_fifo */
-int process_page_access_fifo(struct PTE page_table[TABLEMAX],int *table_cnt, int page_number, int frame_pool[POOLMAX],int *frame_cnt, int current_timestamp);
-/* count_page_faults_fifo */
-int count_page_faults_fifo(struct PTE page_table[TABLEMAX],int table_cnt, int refrence_string[REFERENCEMAX],int reference_cnt,int frame_pool[POOLMAX],int frame_cnt);
-/* process_page_access_lru */
-int process_page_access_lru(struct PTE page_table[TABLEMAX],int *table_cnt, int page_number, int frame_pool[POOLMAX],int *frame_cnt, int current_timestamp);
-/* count_page_faults_lru */
-int count_page_faults_lru(struct PTE page_table[TABLEMAX],int table_cnt, int refrence_string[REFERENCEMAX],int reference_cnt,int frame_pool[POOLMAX],int frame_cnt);
-/* process_page_access_lfu */
-int process_page_access_lfu(struct PTE page_table[TABLEMAX],int *table_cnt, int page_number, int frame_pool[POOLMAX],int *frame_cnt, int current_timestamp);
-/* count_page_faults_lfu */
-int count_page_faults_lfu(struct PTE page_table[TABLEMAX],int table_cnt, int refrence_string[REFERENCEMAX],int reference_cnt,int frame_pool[POOLMAX],int frame_cnt);
-
-
-int process_page_access_fifo(struct PTE page_table[TABLEMAX],int *table_cnt, int page_number, int frame_pool[POOLMAX],int *frame_cnt, int current_timestamp){
-	int fn;
-		fn = frame_pool[*frame_cnt - 1];
-
-		page_table[page_number].frame_number = fn;
-		page_table[page_number].arrival_timestamp = current_timestamp;
-		page_table[page_number].last_access_timestamp = current_timestamp;
-		page_table[page_number].reference_count = 1;
-		page_table[page_number].is_valid = 1;
-
-		(*frame_cnt)--;
-		return(fn);
-	}
-	
-	
-	int position = -1;
-	for(int i = 0; i < *table_cnt; i++){
-		if(page_table[i].is_valid && page_table[i].arrival_timestamp < min_ts){
-			min_ts = page_table[i].arrival_timestamp;
-			position = i;
-		}
-	}
-	
-	fn = page_table[position].frame_number;
-	
-	page_table[position].is_valid = 0;
-	page_table[position].frame_number = -1;
-	page_table[position].arrival_timestamp = -1;
-	page_table[position].last_access_timestamp = -1;
-	page_table[position].reference_count = -1;
-	page_table[page_number].frame_number = fn;
-	page_table[page_number].arrival_timestamp = current_timestamp;
-	page_table[page_number].last_access_timestamp = current_timestamp;
-	page_table[page_number].reference_count = 1;
-	page_table[page_number].is_valid = 1;
-	return(fn);
-		
-}
-
-
-int count_page_faults_fifo(struct PTE page_table[TABLEMAX],int table_cnt, int refrence_string[REFERENCEMAX],int reference_cnt,int frame_pool[POOLMAX],int frame_cnt){
-	int current_timestamp = 1;
+int count_page_faults_fifo(struct PTE page_table[TABLEMAX],int table_cnt, int reference_string[REFERENCEMAX],int reference_cnt,int frame_pool[POOLMAX],int frame_cnt)
+{
 	int page_faults = 0;
-	int fn;
-	int min_ts = INT_MAX;
-	int position = -1;
-
-	for(int i = 0; i < reference_cnt; i++){
+	int current_timestamp = 1;
+	for (int i = 0; i < reference_cnt; i++)
+	{
+		int page_reference = reference_string[i];
 		current_timestamp++;
-		int logical_page_number = refrence_string[i];
-	
-		if(page_table[logical_page_number].is_valid){
-			page_table[logical_page_number].last_access_timestamp = current_timestamp;
-			page_table[logical_page_number].reference_count++;
-		}else{
-
-			page_faults++;
-			if(frame_cnt > 0){
-				page_table[logical_page_number].is_valid = 1;
-				page_table[logical_page_number].frame_number = frame_pool[frame_cnt - 1];
-				page_table[logical_page_number].arrival_timestamp = current_timestamp;
-				page_table[logical_page_number].last_access_timestamp = current_timestamp;
-				page_table[logical_page_number].reference_count = 1;
-				//Remove frame from process frame pool
-				frame_pool[frame_cnt - 1] = -1;
+		if (page_table[page_reference].is_valid)
+		{
+			current_timestamp++;
+			page_table[page_reference].last_access_timestamp = current_timestamp;
+			page_table[page_reference].reference_count++;
+		}
+		else
+		{
+			int frame;
+			if (frame_cnt > 0)
+			{
+				page_faults++;
+				frame = frame_pool[0];
 				frame_cnt--;
-			} else {
-				min_ts = INT_MAX;
-				position = -1;
-				for(int j = 0; j < table_cnt; j++){
-					if(page_table[j].is_valid && page_table[j].arrival_timestamp < min_ts){
-						min_ts = page_table[j].arrival_timestamp;
-						position = j;
+				page_table[page_reference].reference_count++;
+			}
+			else
+			{
+				page_faults++;
+				int min_PTE = 0;
+				//find page in page table with earliest arrival time
+				int min_arrival_timestamp = 10000;
+				for (int i = 0; i < table_cnt; i++)
+				{
+					if (page_table[i].is_valid && page_table[i].arrival_timestamp < min_arrival_timestamp)
+					{
+						min_arrival_timestamp = page_table[i].arrival_timestamp;
+						min_PTE = i;
 					}
 				}
-				fn = page_table[position].frame_number;
-				page_table[position].is_valid = 0;
-				page_table[position].frame_number = -1;
-				page_table[position].arrival_timestamp = -1;
-				page_table[position].last_access_timestamp = -1;
-				page_table[position].reference_count = -1;
-				page_table[logical_page_number].frame_number = fn;
-				page_table[logical_page_number].arrival_timestamp = current_timestamp;
-				page_table[logical_page_number].last_access_timestamp = current_timestamp;
-				page_table[logical_page_number].reference_count = 1;
-				page_table[logical_page_number].is_valid = 1;
+				frame = page_table[min_PTE].frame_number;
+				page_table[min_PTE].is_valid = 0;
+				page_table[min_PTE].arrival_timestamp = 0;
+				page_table[min_PTE].last_access_timestamp = 0;
+				page_table[min_PTE].reference_count = 0;
+				page_table[page_reference].reference_count = 1;
 			}
+			page_table[page_reference].frame_number = frame;
+			page_table[page_reference].is_valid = 1;
+			page_table[page_reference].arrival_timestamp = current_timestamp;
+			page_table[page_reference].last_access_timestamp = current_timestamp;
 		}
-
 	}
-	return(page_faults);
+	return page_faults;
 }
 
+int count_page_faults_lfu(struct PTE page_table[TABLEMAX],int table_cnt, int refrence_string[REFERENCEMAX],int reference_cnt,int frame_pool[POOLMAX],int frame_cnt) {
 
+    int i, j, curr_time, page_faults, smallest_ref, smallest_ref_location, first_guess;
 
-int process_page_access_lru(struct PTE page_table[TABLEMAX],int *table_cnt, int page_number, int frame_pool[POOLMAX],int *frame_cnt, int current_timestamp){
-	int fn;
-	if(page_table[page_number].is_valid){
-		
-		page_table[page_number].last_access_timestamp = current_timestamp;
-		page_table[page_number].reference_count ++;
-		return(page_table[page_number].frame_number);
-	}
-	
-	if(*frame_cnt > 0){
-		
-		fn = frame_pool[*frame_cnt - 1];
+    page_faults = 0;
+    curr_time = 1;
+    for(i = 0; i < reference_cnt; i++) {
+        if(page_table[refrence_string[i]].is_valid == 1) {
+            page_table[refrence_string[i]].last_access_timestamp = curr_time;
+            page_table[refrence_string[i]].reference_count++;
+        } else {
+            if(frame_cnt != 0) {
+                (frame_cnt)--;
+                page_table[refrence_string[i]].is_valid = 1;
+                page_table[refrence_string[i]].frame_number = frame_pool[frame_cnt];
+                page_table[refrence_string[i]].arrival_timestamp = curr_time;
+                page_table[refrence_string[i]].last_access_timestamp = curr_time;
+                page_table[refrence_string[i]].reference_count = 1;
+                page_faults++;
+            } else {
+                first_guess = 1;
+                smallest_ref = 0;
+                for(j = 0; j < table_cnt; j++) {
+                    if(page_table[j].is_valid == 1) {
+                        if(first_guess) {
+                            smallest_ref = page_table[j].reference_count;
+                            smallest_ref_location = j;
+                            first_guess = 0;
+                        } else if(page_table[j].reference_count < smallest_ref) {
+                            smallest_ref = page_table[j].reference_count;
+                            smallest_ref_location = j;
+                        } else if(page_table[j].reference_count == smallest_ref) {
+                            if(page_table[j].arrival_timestamp < page_table[smallest_ref_location].arrival_timestamp) {
+                                smallest_ref = page_table[j].reference_count;
+                                smallest_ref_location = j;
+                            }
+                        }
+                    }
+                }
 
-		page_table[page_number].frame_number = fn;
-		page_table[page_number].arrival_timestamp = current_timestamp;
-		page_table[page_number].last_access_timestamp = current_timestamp;
-		page_table[page_number].reference_count = 1;
-		page_table[page_number].is_valid = 1;
-
-		(*frame_cnt)--;
-		return(fn);
-	}
-	
-	int min_ts = INT_MAX;
-	int position = -1;
-	for(int i = 0; i < *table_cnt; i++){
-		if(page_table[i].is_valid && page_table[i].last_access_timestamp < min_ts){
-			min_ts = page_table[i].last_access_timestamp;
-			position = i;
-		}
-	}
-	fn = page_table[position].frame_number;
-	page_table[position].is_valid = 0;
-	page_table[position].frame_number = -1;
-	page_table[position].arrival_timestamp = -1;
-	page_table[position].last_access_timestamp = -1;
-	page_table[position].reference_count = -1;
-	page_table[page_number].frame_number = fn;
-	page_table[page_number].arrival_timestamp = current_timestamp;
-	page_table[page_number].last_access_timestamp = current_timestamp;
-	page_table[page_number].reference_count = 1;
-	page_table[page_number].is_valid = 1;
-	return(fn);
+                page_table[smallest_ref_location].is_valid = 0;
+                page_table[refrence_string[i]].frame_number = page_table[smallest_ref_location].frame_number;
+                page_table[smallest_ref_location].frame_number = -1;
+                page_table[smallest_ref_location].arrival_timestamp = 0;
+                page_table[smallest_ref_location].last_access_timestamp = 0;
+                page_table[smallest_ref_location].reference_count = 0;
+                page_table[refrence_string[i]].is_valid = 1;
+                page_table[refrence_string[i]].arrival_timestamp = curr_time;
+                page_table[refrence_string[i]].last_access_timestamp = curr_time;
+                page_table[refrence_string[i]].reference_count = 1;
+                page_faults++;
+            }
+        }
+        curr_time++;
+    }
+    return page_faults;
 }
-int count_page_faults_lru(struct PTE page_table[TABLEMAX],int table_cnt, int refrence_string[REFERENCEMAX],int reference_cnt,int frame_pool[POOLMAX],int frame_cnt){
-	int current_timestamp = 1;
-	int page_faults = 0;
-	int fn;
-	int min_ts = INT_MAX;
-	int position = -1;
+int count_page_faults_lru(struct PTE page_table[TABLEMAX],int table_cnt, int refrence_string[REFERENCEMAX],int reference_cnt,int frame_pool[POOLMAX],int frame_cnt) {
 
-	for(int i = 0; i < reference_cnt; i++){
-		current_timestamp++;
-		int logical_page_number = refrence_string[i];
-	
-		if(page_table[logical_page_number].is_valid){
-			page_table[logical_page_number].last_access_timestamp = current_timestamp;
-			page_table[logical_page_number].reference_count++;
-		}else{
-			page_faults++;
-			if(frame_cnt > 0){
-				page_table[logical_page_number].is_valid = 1;
-				page_table[logical_page_number].frame_number = frame_pool[frame_cnt - 1];
-				page_table[logical_page_number].arrival_timestamp = current_timestamp;
-				page_table[logical_page_number].last_access_timestamp = current_timestamp;
-				page_table[logical_page_number].reference_count = 1;
-				frame_pool[frame_cnt - 1] = -1;
-				frame_cnt--;
-			} else {
-				min_ts = INT_MAX;
-				position = -1;
-				for(int j = 0; j < table_cnt; j++){
-					if(page_table[j].is_valid && page_table[j].last_access_timestamp < min_ts){
-						min_ts = page_table[j].last_access_timestamp;
-						position = j;
-					}
-				}
-				fn = page_table[position].frame_number;
-				page_table[position].is_valid = 0;
-				page_table[position].frame_number = -1;
-				page_table[position].arrival_timestamp = -1;
-				page_table[position].last_access_timestamp = -1;
-				page_table[position].reference_count = -1;
-				page_table[logical_page_number].frame_number = fn;
-				page_table[logical_page_number].arrival_timestamp = current_timestamp;
-				page_table[logical_page_number].last_access_timestamp = current_timestamp;
-				page_table[logical_page_number].reference_count = 1;
-				page_table[logical_page_number].is_valid = 1;
-			}
-		}
+    int i, j, curr_time, page_faults, smallest_last, smallest_last_location, first_guess;
 
-	}
-	return(page_faults);
+    page_faults = 0;
+    curr_time = 1;
+    for(i = 0; i < reference_cnt; i++) {
+        if(page_table[refrence_string[i]].is_valid == 1) {
+            page_table[refrence_string[i]].last_access_timestamp = curr_time;
+            page_table[refrence_string[i]].reference_count++;
+        } else {
+            if(frame_cnt != 0) {
+                (frame_cnt)--;
+                page_table[refrence_string[i]].is_valid = 1;
+                page_table[refrence_string[i]].frame_number = frame_pool[frame_cnt];
+                page_table[refrence_string[i]].arrival_timestamp = curr_time;
+                page_table[refrence_string[i]].last_access_timestamp = curr_time;
+                page_table[refrence_string[i]].reference_count = 1;
+                page_faults++;
+            } else {
+                first_guess = 1;
+                smallest_last = curr_time;
+                for(j = 0; j < table_cnt; j++) {
+                    if(page_table[j].is_valid == 1) {
+                        if(first_guess) {
+                            smallest_last = page_table[j].last_access_timestamp;
+                            smallest_last_location = j;
+                            first_guess = 0;
+                        } else if(page_table[j].last_access_timestamp < smallest_last) {
+                            smallest_last = page_table[j].last_access_timestamp;
+                            smallest_last_location = j;
+                        }
+                    }
+                }
+
+                page_table[smallest_last_location].is_valid = 0;
+                page_table[refrence_string[i]].frame_number = page_table[smallest_last_location].frame_number;
+                page_table[smallest_last_location].frame_number = -1;
+                page_table[smallest_last_location].arrival_timestamp = 0;
+                page_table[smallest_last_location].last_access_timestamp = 0;
+                page_table[smallest_last_location].reference_count = 0;
+                page_table[refrence_string[i]].is_valid = 1;
+                page_table[refrence_string[i]].arrival_timestamp = curr_time;
+                page_table[refrence_string[i]].last_access_timestamp = curr_time;
+                page_table[refrence_string[i]].reference_count = 1;
+                page_faults++;
+            }
+        }
+        curr_time++;
+    }
+    return page_faults;
 }
-int process_page_access_lfu(struct PTE page_table[TABLEMAX],int *table_cnt, int page_number, int frame_pool[POOLMAX],int *frame_cnt, int current_timestamp){
-	int fn;
-	if(page_table[page_number].is_valid){
-		page_table[page_number].last_access_timestamp = current_timestamp;
-		page_table[page_number].reference_count ++;
-		return(page_table[page_number].frame_number);
-	}
-	if(*frame_cnt > 0){
+int process_page_access_fifo(struct PTE page_table[TABLEMAX],int *table_cnt, int page_number, int frame_pool[POOLMAX],int *frame_cnt, int current_timestamp) {
 
-		fn = frame_pool[*frame_cnt - 1];
+    int i, smallest_arrival, smallest_arrival_location;
 
-		page_table[page_number].frame_number = fn;
-		page_table[page_number].arrival_timestamp = current_timestamp;
-		page_table[page_number].last_access_timestamp = current_timestamp;
-		page_table[page_number].reference_count = 1;
-		page_table[page_number].is_valid = 1;
+    if(page_table[page_number].is_valid == 1) {
+        page_table[page_number].last_access_timestamp = current_timestamp;
+        page_table[page_number].reference_count +=1;
 
-		(*frame_cnt)--;
-		return(fn);
-	}
-	
-	int min_ts = INT_MAX;
-	int min_at = INT_MAX;
-	int position = -1;
-	for(int i = 0; i < *table_cnt; i++){
-		if(page_table[i].is_valid && page_table[i].reference_count < min_ts){
-			min_ts = page_table[i].reference_count;
-			position = i;
-			min_at = page_table[i].arrival_timestamp;
-		}else if(page_table[i].is_valid && page_table[i].reference_count == min_ts){
-			if(page_table[i].arrival_timestamp < min_at){
-				min_ts = page_table[i].reference_count;
-				position = i;
-				min_at = page_table[i].arrival_timestamp;
-			}
-		}
-	}
-	fn = page_table[position].frame_number;
-	page_table[position].is_valid = 0;
-	page_table[position].frame_number = -1;
-	page_table[position].arrival_timestamp = -1;
-	page_table[position].last_access_timestamp = -1;
-	page_table[position].reference_count = -1;
-	page_table[page_number].frame_number = fn;
-	page_table[page_number].arrival_timestamp = current_timestamp;
-	page_table[page_number].last_access_timestamp = current_timestamp;
-	page_table[page_number].reference_count = 1;
-	page_table[page_number].is_valid = 1;
-	return(fn);
+        return page_table[page_number].frame_number;
+    } else {
+        if(*frame_cnt != 0) {
+            (*frame_cnt)--;
+            page_table[page_number].is_valid = 1;
+            page_table[page_number].frame_number = frame_pool[*frame_cnt];
+            page_table[page_number].arrival_timestamp = current_timestamp;
+            page_table[page_number].last_access_timestamp = current_timestamp;
+            page_table[page_number].reference_count = 1;
+
+            return page_table[page_number].frame_number;
+        } else {
+            smallest_arrival = current_timestamp;
+            for(i = 0; i < *table_cnt; i++) {
+                if((page_table[i].is_valid == 1) && (page_table[i].arrival_timestamp < smallest_arrival)) {
+                    smallest_arrival_location = i;
+                    smallest_arrival = page_table[i].arrival_timestamp;
+                }
+            }
+
+            page_table[smallest_arrival_location].is_valid = 0;
+            page_table[page_number].frame_number = page_table[smallest_arrival_location].frame_number;
+            page_table[smallest_arrival_location].frame_number = -1;
+            page_table[smallest_arrival_location].arrival_timestamp = 0;
+            page_table[smallest_arrival_location].last_access_timestamp = 0;
+            page_table[smallest_arrival_location].reference_count = 0;
+            page_table[page_number].is_valid = 1;
+            page_table[page_number].arrival_timestamp = current_timestamp;
+            page_table[page_number].last_access_timestamp = current_timestamp;
+            page_table[page_number].reference_count = 1;
+
+            return page_table[page_number].frame_number;
+        }
+    }
 }
-/* count_page_faults_lfu */
-int count_page_faults_lfu(struct PTE page_table[TABLEMAX],int table_cnt, int refrence_string[REFERENCEMAX],int reference_cnt,int frame_pool[POOLMAX],int frame_cnt){
-	int current_timestamp = 1;
-	int page_faults = 0;
-	int fn;
-	int min_at = INT_MAX;
-	int min_ts = INT_MAX;
-	int position = -1;
+int process_page_access_lfu(struct PTE page_table[TABLEMAX],int *table_cnt, int page_number, int frame_pool[POOLMAX],int *frame_cnt, int current_timestamp) {
 
-	for(int i = 0; i < reference_cnt; i++){
-		current_timestamp++;
-		int logical_page_number = refrence_string[i];
-	
-		if(page_table[logical_page_number].is_valid){
-			page_table[logical_page_number].last_access_timestamp = current_timestamp;
-			page_table[logical_page_number].reference_count++;
-		}else{
-		
-			page_faults++;
-			if(frame_cnt > 0){
-				page_table[logical_page_number].is_valid = 1;
-				page_table[logical_page_number].frame_number = frame_pool[frame_cnt - 1];
-				page_table[logical_page_number].arrival_timestamp = current_timestamp;
-				page_table[logical_page_number].last_access_timestamp = current_timestamp;
-				page_table[logical_page_number].reference_count = 1;
-				//Remove frame from process frame pool
-				frame_pool[frame_cnt - 1] = -1;
-				frame_cnt--;
-			} else {
-				min_ts = INT_MAX;
-				min_at = INT_MAX;
-				position = -1;
-				for(int j = 0; j < table_cnt; j++){
-					if(page_table[j].is_valid && page_table[j].reference_count < min_ts){
-						min_ts = page_table[j].reference_count;
-						min_at = page_table[j].arrival_timestamp;
-						position = j;
-					}else if(page_table[j].is_valid && page_table[j].reference_count == min_ts){
-						if(page_table[j].arrival_timestamp < min_at){
-							min_ts = page_table[j].reference_count;
-							position = j;
-							min_at = page_table[j].arrival_timestamp;
-						}
-					}
-				}
-				fn = page_table[position].frame_number;
-				page_table[position].is_valid = 0;
-				page_table[position].frame_number = -1;
-				page_table[position].arrival_timestamp = -1;
-				page_table[position].last_access_timestamp = -1;
-				page_table[position].reference_count = -1;
-				page_table[logical_page_number].frame_number = fn;
-				page_table[logical_page_number].arrival_timestamp = current_timestamp;
-				page_table[logical_page_number].last_access_timestamp = current_timestamp;
-				page_table[logical_page_number].reference_count = 1;
-				page_table[logical_page_number].is_valid = 1;
-			}
-		}
+    int i, smallest_last, smallest_last_location;
 
-	}
-	return(page_faults);
+    if(page_table[page_number].is_valid == 1) {
+        page_table[page_number].last_access_timestamp = current_timestamp;
+        page_table[page_number].reference_count +=1;
+
+        return page_table[page_number].frame_number;
+    } else {
+        if(*frame_cnt != 0) {
+            (*frame_cnt)--;
+            page_table[page_number].is_valid = 1;
+            page_table[page_number].frame_number = frame_pool[*frame_cnt];
+            page_table[page_number].arrival_timestamp = current_timestamp;
+            page_table[page_number].last_access_timestamp = current_timestamp;
+            page_table[page_number].reference_count = 1;
+
+            return page_table[page_number].frame_number;
+        } else {
+            smallest_last = current_timestamp;
+            for(i = 0; i < *table_cnt; i++) {
+                if((page_table[i].is_valid == 1) && (page_table[i].last_access_timestamp < smallest_last)) {
+                    smallest_last_location = i;
+                    smallest_last = page_table[i].last_access_timestamp;
+                }
+            }
+
+            page_table[smallest_last_location].is_valid = 0;
+            page_table[page_number].frame_number = page_table[smallest_last_location].frame_number;
+            page_table[smallest_last_location].frame_number = -1;
+            page_table[smallest_last_location].arrival_timestamp = 0;
+            page_table[smallest_last_location].last_access_timestamp = 0;
+            page_table[smallest_last_location].reference_count = 0;
+            page_table[page_number].is_valid = 1;
+            page_table[page_number].arrival_timestamp = current_timestamp;
+            page_table[page_number].last_access_timestamp = current_timestamp;
+            page_table[page_number].reference_count = 1;
+
+            return page_table[page_number].frame_number;
+        }
+    }
+}
+int process_page_access_lru(struct PTE page_table[TABLEMAX],int *table_cnt, int page_number, int frame_pool[POOLMAX],int *frame_cnt, int current_timestamp) {
+
+    int i, smallest_ref, smallest_ref_location, first_guess;
+
+    if(page_table[page_number].is_valid == 1) {
+        page_table[page_number].last_access_timestamp = current_timestamp;
+        page_table[page_number].reference_count +=1;
+
+        return page_table[page_number].frame_number;
+    } else {
+        if(*frame_cnt != 0) {
+            (*frame_cnt)--;
+            page_table[page_number].is_valid = 1;
+            page_table[page_number].frame_number = frame_pool[*frame_cnt];
+            page_table[page_number].arrival_timestamp = current_timestamp;
+            page_table[page_number].last_access_timestamp = current_timestamp;
+            page_table[page_number].reference_count = 1;
+
+            return page_table[page_number].frame_number;
+        } else {
+            first_guess = 1;
+            smallest_ref = 0;
+            for(i = 0; i < *table_cnt; i++) {
+                if(page_table[i].is_valid == 1) {
+                    if(first_guess) {
+                        smallest_ref = page_table[i].reference_count;
+                        smallest_ref_location = i;
+                        first_guess = 0;
+                    } else if(page_table[i].reference_count < smallest_ref) {
+                        smallest_ref = page_table[i].reference_count;
+                        smallest_ref_location = i;
+                    } else if(page_table[i].reference_count == smallest_ref) {
+                        if(page_table[i].arrival_timestamp < page_table[smallest_ref_location].arrival_timestamp) {
+                            smallest_ref = page_table[i].reference_count;
+                            smallest_ref_location = i;
+                        }
+                    }
+                }
+            }
+
+            page_table[smallest_ref_location].is_valid = 0;
+            page_table[page_number].frame_number = page_table[smallest_ref_location].frame_number;
+            page_table[smallest_ref_location].frame_number = -1;
+            page_table[smallest_ref_location].arrival_timestamp = 0;
+            page_table[smallest_ref_location].last_access_timestamp = 0;
+            page_table[smallest_ref_location].reference_count = 0;
+            page_table[page_number].is_valid = 1;
+            page_table[page_number].arrival_timestamp = current_timestamp;
+            page_table[page_number].last_access_timestamp = current_timestamp;
+            page_table[page_number].reference_count = 1;
+
+            return page_table[page_number].frame_number;
+        }
+    }
 }
